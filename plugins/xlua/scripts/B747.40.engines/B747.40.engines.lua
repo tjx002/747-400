@@ -1787,7 +1787,11 @@ function B747_set_engines_CD()
     B747DR_engine_fuel_valve_pos[1] = 0
     B747DR_engine_fuel_valve_pos[2] = 0
     B747DR_engine_fuel_valve_pos[3] = 0
-
+    
+    simDR_engine_throttle_jet[0] = 0.0
+	simDR_engine_throttle_jet[1] = 0.0
+	simDR_engine_throttle_jet[2] = 0.0
+	simDR_engine_throttle_jet[3] = 0.0
 
 end
 
