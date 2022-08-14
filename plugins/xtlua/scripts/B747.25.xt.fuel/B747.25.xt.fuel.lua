@@ -53,7 +53,7 @@ end
 --*************************************************************************************--
 --**                      GLOBAL VARIABLES                         **--
 --*************************************************************************************--
-
+simDR_time_now						= find_dataref("sim/time/total_running_time_sec")
 B747 = {}
 B747.fuel = {}
 
@@ -350,7 +350,7 @@ local engine2fuelSrc = {}
 local engine3fuelSrc = {}
 local engine4fuelSrc = {}
 
-local fuel_calc_rate = 0.10                             -- FREQUENCY OF FUEL CALCULATION (TIMER)
+local fuel_update_rate = 0.10                             -- FREQUENCY OF FUEL CALCULATION (TIMER)
 
 local fuel_tankToEngine = 0
 
@@ -365,7 +365,7 @@ simDR_startup_running               = find_dataref("sim/operation/prefs/startup_
 simDR_override_fuel_system          = find_dataref("sim/operation/override/override_fuel_system")
 
 simDR_elec_bus_volts                = find_dataref("sim/cockpit2/electrical/bus_volts")
-simDR_flap_deploy_ratio             = find_dataref("sim/flightmodel2/controls/flap_handle_deploy_ratio")
+simDR_flap_deploy_ratio             = find_dataref("laminar/B747/cablecontrols/flap_ratio")
 simDR_wing_flap1_deg                = find_dataref("sim/flightmodel2/wing/flap1_deg")
 simDR_all_wheels_on_ground          = find_dataref("sim/flightmodel/failures/onground_any")
 simDR_TAT                           = find_dataref("sim/cockpit2/temperature/outside_air_LE_temp_degc")
@@ -528,6 +528,7 @@ B747DR_fuel_preselect_temp        = deferred_dataref("laminar/B747/fuel/fuel_pre
 
 -- Holds all SimConfig options
 B747DR_simconfig_data         = deferred_dataref("laminar/B747/simconfig", "string")
+B747DR_newsimconfig_data				= deferred_dataref("laminar/B747/newsimconfig", "number")
 
 --*************************************************************************************--
 --**                     X-PLANE COMMAND HANDLERS                        **--
@@ -2120,7 +2121,14 @@ local lastTotalFuel=0
 simDR_fuel_tank_weight_total_kg     = find_dataref("sim/flightmodel/weight/m_fuel_total")
 
 ------ FUEL TANK LEVELS --------------------------------------------------------------
+local lastFuelUpdate=0
 function B747_fuel_tank_levels()
+    if lastFuelUpdate==0 then
+        lastFuelUpdate=simDR_time_now
+    end
+    fuel_calc_rate=simDR_time_now-lastFuelUpdate
+    --print("B747_fuel_tank_levels "..(fuel_calc_rate))
+    lastFuelUpdate=simDR_time_now
     if lastTotalFuel==0 then 
         lastTotalFuel=simDR_fuel_tank_weight_total_kg 
         for i=0,7,1 do
@@ -2681,9 +2689,17 @@ function B747_fuel_jettison_time()
 end
 
 
+function eicas_caution_center_left()
+    if B747DR_button_switch_position[52] > 0.95 then
+        B747DR_CAS_caution_status[69] = 1
+    end
+end
 
-
-
+function eicas_caution_center_right()
+    if B747DR_button_switch_position[53] > 0.95 then
+        B747DR_CAS_caution_status[70] = 1
+    end
+end
 
 ----- FUEL SYSTEM EICAS MESSAGES --------------------------------------------------------
 function B747_fuel_EICAS_msg()
@@ -2720,7 +2736,7 @@ function B747_fuel_EICAS_msg()
     then
         B747DR_CAS_caution_status[36] = 1
     else
-  B747DR_CAS_caution_status[36] = 0
+        B747DR_CAS_caution_status[36] = 0
     end
 
     -- APU FUEL
@@ -2731,7 +2747,7 @@ function B747_fuel_EICAS_msg()
     then
         B747DR_CAS_advisory_status[15] = 1
     else
-      B747DR_CAS_advisory_status[15] = 0
+        B747DR_CAS_advisory_status[15] = 0
     end
 
     -- ENG 1 FUEL FILT
@@ -2867,6 +2883,43 @@ function B747_fuel_EICAS_msg()
       B747DR_CAS_advisory_status[158] = 0
     end
 
+    -- FUEL LOW CTR L
+    if B747DR_CAS_caution_status[37] == 0 and B747DR_CAS_caution_status[69] == 0 then
+        if B747DR_button_switch_position[52] > 0.95
+            and simDR_fuel_tank_weight_kg[0] <= 1300.0
+        then
+            B747DR_CAS_advisory_status[302] = 1 
+            if is_timer_scheduled(eicas_caution_center_left)==false then
+                run_after_time(eicas_caution_center_left,60)
+            end
+        else
+            B747DR_CAS_advisory_status[302] = 0
+        end
+    elseif B747DR_button_switch_position[52] < 0.95 then
+        B747DR_CAS_advisory_status[302] = 0
+        B747DR_CAS_caution_status[69] = 0
+    else
+        B747DR_CAS_advisory_status[302] = 0
+    end    
+    -- FUEL LOW CTR R
+    if B747DR_CAS_caution_status[37] == 0 and B747DR_CAS_caution_status[70] == 0 then
+        if B747DR_button_switch_position[53] > 0.95
+            and simDR_fuel_tank_weight_kg[0] <= 1300.0
+        then
+            B747DR_CAS_advisory_status[303] = 1
+            if is_timer_scheduled(eicas_caution_center_right)==false then
+                run_after_time(eicas_caution_center_right,60)
+            end
+            
+        else
+            B747DR_CAS_advisory_status[303] = 0
+        end
+    elseif B747DR_button_switch_position[53] < 0.95 then
+        B747DR_CAS_advisory_status[303] = 0
+        B747DR_CAS_caution_status[70] = 0
+    else
+        B747DR_CAS_advisory_status[303] = 0
+    end  
     -- FUEL PMP STAB L
     
     if B747DR_CAS_caution_status[37] == 0 then
@@ -2874,8 +2927,8 @@ function B747_fuel_EICAS_msg()
             or (B747DR_button_switch_position[54] < 0.05 and simDR_fuel_tank_weight_kg[7] > 500.0 and simDR_all_wheels_on_ground == 0)
         then
             B747DR_CAS_advisory_status[159] = 1
-  else
-    B747DR_CAS_advisory_status[159] = 0
+        else
+            B747DR_CAS_advisory_status[159] = 0
         end
     else
       B747DR_CAS_advisory_status[159] = 0
@@ -2889,7 +2942,7 @@ function B747_fuel_EICAS_msg()
         then
             B747DR_CAS_advisory_status[160] = 1
   else
-    B747DR_CAS_advisory_status[160] = 0
+        B747DR_CAS_advisory_status[160] = 0
         end
     else
       B747DR_CAS_advisory_status[160] = 0
@@ -3224,8 +3277,8 @@ function B747_refueling()
   return
   end
   
-  --local fuelIn=math.min(10.5*fuel_calc_rate,B747DR_refuel)
-  local fuelIn=math.min(100*fuel_calc_rate,B747DR_refuel)
+
+  local fuelIn=math.min(100*fuel_update_rate,B747DR_refuel)
   --print("sending fuel "..fuelIn)
   
   --Marauder28
@@ -3457,7 +3510,7 @@ function B747_flight_start_fuel()
         lastFuelLevels[i]=simDR_fuel_tank_weight_kg[i]
     end
     -- ALL MODES ------------------------------------------------------------------------
-    run_at_interval(B747_fuel_tank_levels, fuel_calc_rate)
+    run_at_interval(B747_fuel_tank_levels, fuel_update_rate)
   
     B747_set_fuel_all_modes()
 
@@ -3522,11 +3575,21 @@ function before_physics()
     B747_engine_fuel_source()
     B747_engine_has_fuel()
 end
-
+local setSimConfig=false
+function hasSimConfig()
+	if B747DR_newsimconfig_data==1 then
+		if string.len(B747DR_simconfig_data) > 1 then
+			simConfigData["data"] = json.decode(B747DR_simconfig_data)
+			setSimConfig=true
+		else
+			return false
+		end
+	end
+	return setSimConfig
+end
 function after_physics()
---     print("before" .. simDR_fuel_tank_weight_kg[0] .. " " .. simDR_fuel_tank_weight_kg[1].. " " .. simDR_fuel_tank_weight_kg[2].. " " .. 
---       simDR_fuel_tank_weight_kg[3].. " " .. simDR_fuel_tank_weight_kg[4].. " " .. simDR_fuel_tank_weight_kg[5].. " " .. 
---       simDR_fuel_tank_weight_kg[6].. " " .. simDR_fuel_tank_weight_kg[7])
+    if hasSimConfig()==false then return end
+    local onGround=simDR_all_wheels_on_ground
     if debug_fuel>11 then return end
     B747_fuel_pump_control()
     if debug_fuel>10 then return end
@@ -3559,11 +3622,7 @@ function after_physics()
 --       simDR_fuel_tank_weight_kg[3].. " " .. simDR_fuel_tank_weight_kg[4].. " " .. simDR_fuel_tank_weight_kg[5].. " " .. 
 --       simDR_fuel_tank_weight_kg[6].. " " .. simDR_fuel_tank_weight_kg[7])
 
-  if string.len(B747DR_simconfig_data) > 1 then
-    simConfigData["data"] = json.decode(B747DR_simconfig_data)
-  else
-    simConfigData["data"] = json.decode("[]")
-  end
+ 
 
   --Display Fuel Units
   B747_calculate_fuel_display_units()

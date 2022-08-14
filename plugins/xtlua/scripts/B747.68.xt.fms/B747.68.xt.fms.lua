@@ -37,6 +37,7 @@ B747DR_engine_used_fuel       = find_dataref("laminar/B747/fuel/totaliser")
 simDR_autopilot_airspeed_is_mach	= find_dataref("sim/cockpit2/autopilot/airspeed_is_mach")
 simDR_autopilot_airspeed_kts_mach   	= find_dataref("sim/cockpit2/autopilot/airspeed_dial_kts_mach")
 simDR_autopilot_airspeed_kts   		= find_dataref("sim/cockpit2/autopilot/airspeed_dial_kts")
+B747DR_elec_ext_pwr1_available      = find_dataref("laminar/B747/electrical/ext_pwr1_avail")
 --Workaround for stack overflow in init.lua namespace_read
 
 
@@ -266,7 +267,7 @@ B747DR_fms1_display_brightness      = deferred_dataref("laminar/B747/fms1/displa
 --Marauder28
 -- Holds all SimConfig options
 B747DR_simconfig_data					= deferred_dataref("laminar/B747/simconfig", "string")
-
+B747DR_newsimconfig_data				= deferred_dataref("laminar/B747/newsimconfig", "number")
 -- Temp location for fuel preselect for displaying in correct units
 B747DR_fuel_preselect_temp				= deferred_dataref("laminar/B747/fuel/fuel_preselect_temp", "number")
 
@@ -303,15 +304,34 @@ B747DR_ND_Wind_Bearing					= deferred_dataref("laminar/B747/nd/wind_bearing", "n
 B747DR_elevator_trim				    = deferred_dataref("laminar/B747/fmc/elevator_trim", "number")
 
 --Sound Options (crazytimtimtim + Matt726)
-B747DR_SNDoptions			        	= deferred_dataref("laminar/B747/fmod/options", "array[4]")
+B747DR_SNDoptions			        	= deferred_dataref("laminar/B747/fmod/options", "array[7]")
+--B747DR_SNDoptions_volume				= deferred_dataref("laminar/B747/fmod/options/volume", "array[8]")
+B747DR_SNDoptions_gpws					= deferred_dataref("laminar/B747/fmod/options/gpws", "array[16]")
 
 --Simulator Config Options
 simConfigData = {}
-if string.len(B747DR_simconfig_data) > 1 then
-	simConfigData["data"] = json.decode(B747DR_simconfig_data)
-else
-	simConfigData["data"] = json.decode("[]")
+function doneNewSimConfig()
+	B747DR_newsimconfig_data=0
 end
+function pushSimConfig(values)
+	B747DR_simconfig_data=json.encode(values)
+	B747DR_newsimconfig_data=1
+	run_after_time(doneNewSimConfig, 1)
+end
+
+local setSimConfig=false
+function hasSimConfig()
+	if B747DR_newsimconfig_data==1 then
+		if string.len(B747DR_simconfig_data) > 1 then
+			simConfigData["data"] = json.decode(B747DR_simconfig_data)
+			setSimConfig=true
+		else
+			return false
+		end
+	end
+	return setSimConfig
+end
+
 --Marauder28
 
 --Marauder28
@@ -534,7 +554,7 @@ function defaultFMSData()
   transpd="272",
   spdtransalt="10000",
   transalt="18000",
-  clbrestspd="180",
+  clbrestspd="250",
   maxkts="420",
   clbrestalt="5000 ",
   stepalt="FL360",
@@ -630,14 +650,19 @@ fmsModules["setData"]=function(self,id,value)
 	B747DR_FMSdata=json.encode(fmsModules["data"]["values"])--make the fms data available to other modules
 end
 function setFMSData(id,value)
-    --print("setting " .. id .. " to "..value.." curently "..fmsModules["data"][id])
-  
+	
+    print("setting " .. id )
+	print(" to "..value)
+	print(" curently "..fmsModules["data"][id])
    fmsModules:setData(id,value)
 end  
 function getFMSData(id)
   if hasChild(fmsModules["data"],id) then
     return fmsModules["data"][id]
   end
+  print("getting getFMSData" )
+  print("getting " .. id )
+  print(" curently "..fmsModules["data"][id])
   return fmsModules["data"][id]
 end 
 fmsModules["lastcmd"]=" "
@@ -727,7 +752,7 @@ fmsL.targetPage="INDEX"
 fmsR = {}
 setmetatable(fmsR, {__index = fms})
 fmsR.id="fmsR"
-setDREFs(fmsR,"cdu2","fms2","sim/FMS2/","fms2")
+setDREFs(fmsR,"cdu1","fms2","sim/FMS/","fms2")
 fmsR.inCustomFMC=true
 fmsR.targetCustomFMC=true
 fmsR.currentPage="INDEX"
@@ -744,7 +769,7 @@ B747DR_CAS_memo_status          = find_dataref("laminar/B747/CAS/memo_status")
 function getCurrentWayPoint(fms,usenext)
 
 	for i=1,table.getn(fms),1 do
-    --print("FMS j="..fmsJSON)
+     --print("FMS j="..fmsJSON)
 
 		if fms[i][10] == true then
 				--print("Found TRUE = "..fms[i][1].." "..fms[i][2].." "..fms[i][8])
@@ -1022,6 +1047,7 @@ function setNotifications()
 end
 function after_physics()
   if debug_fms>0 then return end
+  if hasSimConfig()==false then return end
 --     for i =1,24,1 do
 --       print(string.byte(fms_style,i))
 --     end
@@ -1070,7 +1096,8 @@ function after_physics()
 	nd_speed_wind_display()
 
 	--Ensure simConfig data is fresh
-	simConfigData["data"] = json.decode(B747DR_simconfig_data)
+	
+
 		
 	--Ensure DR's are updated in time for use in calc_CGMAC()
 	local payload_weight = B747DR_payload_weight

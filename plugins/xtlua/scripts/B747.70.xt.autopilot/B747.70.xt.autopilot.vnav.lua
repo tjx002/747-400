@@ -16,9 +16,11 @@ dofile("B747.70.xt.autopilot.vnavspd.lua")
 function deceleratedDesent(targetvspeed)
   if simDR_autopilot_airspeed_is_mach == 1 then return targetvspeed end --can't do this in mach mode, slow tf down already
 
-
+  local meet = B747_rescale(0,0,400,500,B747BR_fpe)
   local upperAlt=math.max(tonumber(getFMSData("desspdtransalt")),tonumber(getFMSData("desrestalt")))
-  if simDR_pressureAlt1>upperAlt+1000 then return targetvspeed end --nowhere near a restriction yet
+  if simDR_pressureAlt1>upperAlt+1000 then 
+    return targetvspeed -meet
+  end --nowhere near a restriction yet
   local lowerAlt=math.min(tonumber(getFMSData("desspdtransalt")),tonumber(getFMSData("desrestalt")))
   local upperAltspdval=tonumber(getFMSData("destranspd"))
   local lowerAltspdval=tonumber(getFMSData("desrestspd"))
@@ -38,6 +40,7 @@ function deceleratedDesent(targetvspeed)
     return -500 
   end --approximate 500fpm
 
+  return targetvspeed-meet
   --print("oob deceleratedDesent upperAlt"..upperAlt.." lowerAlt=".. lowerAlt .." upperAltspdval=".. upperAltspdval .." simDR_pressureAlt1="..simDR_pressureAlt1.." simDR_ind_airspeed_kts_pilot="..simDR_ind_airspeed_kts_pilot)
 
 
@@ -55,7 +58,7 @@ function setDescentVSpeed()
   --print("speed=".. simDR_groundspeed .. " distance=".. distanceNM .. " vspeed=" .. vspeed .. " vdiff=" .. vdiff .. " time=" .. time)
 		  --speed=89.32039642334 distance=2.9459299767094vspeed=-6559410.6729958
   B747DR_ap_vb = math.atan2(vdiff,nextDistanceInFeet)*-57.2958
-  if vspeed<-3500 then vspeed=-3500 end
+  if vspeed<-2500 then vspeed=-2500 end
   
   if simDR_radarAlt1<=10 then
     simDR_autopilot_vs_fpm = -250 -- slow descent, reduces AoA which if it goes to high spoils the landing

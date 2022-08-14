@@ -105,7 +105,9 @@ B747DR_ND_Wind_Bearing					= deferred_dataref("laminar/B747/nd/wind_bearing", "n
 B747DR_elevator_trim				    = deferred_dataref("laminar/B747/fmc/elevator_trim", "number")
 
 --Sound Options (crazytimtimtim + Matt726)
-B747DR_SNDoptions			        	= deferred_dataref("laminar/B747/fmod/options", "array[4]")
+B747DR_SNDoptions			        	= deferred_dataref("laminar/B747/fmod/options", "array[7]")
+--B747DR_SNDoptions_volume				= deferred_dataref("laminar/B747/fmod/options/volume", "array[8]")
+B747DR_SNDoptions_gpws					= deferred_dataref("laminar/B747/fmod/options/gpws", "array[16]")
 
 function createFMSCommands(fmsO,cduid,fmsid,keyid,fmskeyid)
 B747CMD_fms1_ls_key_L1              = XLuaCreateCommand("laminar/B747/".. fmskeyid .. "/ls_key/L1", fmsO.." Line Select Key 1-Left")
@@ -193,4 +195,4 @@ createFMSCommands("FMS C","cdu1","fms1","sim/FMS/","fms3")
 
 createFMSCommands("FMS L","cdu1","fms3","sim/FMS/","fms1")
  
-createFMSCommands("FMS R","cdu2","fms2","sim/FMS2/","fms2")
+createFMSCommands("FMS R","cdu1","fms2","sim/FMS/","fms2")
